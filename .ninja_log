@@ -511,3 +511,9 @@
 8250	8840	7647116838291961	C:/Dev/infineon/vscode/mtb-passthrough/build/Debug/libraries_shared/mtb-pdl-cat1/drivers/source/cy_usbfs_dev_drv_io_dma.o	7fcb9fb3d6072e8b
 8437	8937	7647116840155036	C:/Dev/infineon/vscode/mtb-passthrough/build/Debug/libraries_shared/retarget-io/source/cy_retarget_io.o	738045242525c8ca
 8937	9201	7647116845158978	build/APP_CY8CKIT-062S2-AI/Debug/mtb-example-hal-hello-world.elf	bc35d98a61ebed93
+1638	2129	7648771130625088	C:/Dev/infineon/vscode/mtb-passthrough/build/Debug/local/main.o	6433ee88e061402e
+2129	3956	7648771135530432	build/APP_CY8CKIT-062S2-AI/Debug/mtb-example-hal-hello-world.elf	bc35d98a61ebed93
+48	397	7648771817287093	C:/Dev/infineon/vscode/mtb-passthrough/build/Debug/local/main.o	6433ee88e061402e
+398	626	7648771820785303	build/APP_CY8CKIT-062S2-AI/Debug/mtb-example-hal-hello-world.elf	bc35d98a61ebed93
+43	379	7648774539805247	C:/Dev/infineon/vscode/mtb-passthrough/build/Debug/local/main.o	6433ee88e061402e
+379	621	7648774543187371	build/APP_CY8CKIT-062S2-AI/Debug/mtb-example-hal-hello-world.elf	bc35d98a61ebed93

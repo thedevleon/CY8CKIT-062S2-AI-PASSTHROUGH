@@ -150,3 +150,6 @@ ehthumbs_vista.db
 
 # clangd cache
 .cache/
+
+# ninja log
+.ninja_log

@@ -71,8 +71,9 @@
 bool timer_interrupt_flag = false;
 bool led_blink_active_flag = true;
 
-// Interrupts for SPI_CLK and SPI_IRQ
+// Interrupts for SPI_CLK, SPI_CS and SPI_IRQ
 cyhal_gpio_callback_data_t gpio_spi_clk_callback_data;
+cyhal_gpio_callback_data_t gpio_spi_cs_callback_data;
 cyhal_gpio_callback_data_t gpio_spi_irq_callback_data;
 
 /* Timer object used for blinking the LED */
@@ -85,6 +86,7 @@ cyhal_timer_t led_blink_timer;
 void timer_init(void);
 static void isr_timer(void *callback_arg, cyhal_timer_event_t event);
 static void gpio_spi_clk_interrupt_handler(void *handler_arg, cyhal_gpio_event_t event);
+static void gpio_spi_cs_interrupt_handler(void *handler_arg, cyhal_gpio_event_t event);
 static void gpio_spi_irq_interrupt_handler(void *handler_arg, cyhal_gpio_event_t event);
 
 /*******************************************************************************
@@ -152,22 +154,22 @@ int main(void)
     // CYBSP_RSPI_MOSI, CYBSP_RSPI_MISO, CYBSP_RSPI_CLK, CYBSP_RSPI_CS, CYBSP_RSPI_IRQ (interrupt), CYBSP_RXRES_L (reset)
     // */
     result = cyhal_gpio_init(CYBSP_RSPI_MOSI, CYHAL_GPIO_DIR_OUTPUT, CYHAL_GPIO_DRIVE_STRONG, false);
-    result = cyhal_gpio_init(CYBSP_RSPI_MISO, CYHAL_GPIO_DIR_INPUT, CYHAL_GPIO_DRIVE_NONE, false);
+    result = cyhal_gpio_init(CYBSP_RSPI_MISO, CYHAL_GPIO_DIR_INPUT, CYHAL_GPIO_DRIVE_PULLDOWN, false);
     result = cyhal_gpio_init(CYBSP_RSPI_CLK, CYHAL_GPIO_DIR_OUTPUT, CYHAL_GPIO_DRIVE_STRONG, false);
     result = cyhal_gpio_init(CYBSP_RSPI_CS, CYHAL_GPIO_DIR_OUTPUT, CYHAL_GPIO_DRIVE_STRONG, true);
-    result = cyhal_gpio_init(CYBSP_RSPI_IRQ, CYHAL_GPIO_DIR_INPUT, CYHAL_GPIO_DRIVE_NONE, false);
+    result = cyhal_gpio_init(CYBSP_RSPI_IRQ, CYHAL_GPIO_DIR_INPUT, CYHAL_GPIO_DRIVE_PULLDOWN, false);
     result = cyhal_gpio_init(CYBSP_RXRES_L, CYHAL_GPIO_DIR_OUTPUT, CYHAL_GPIO_DRIVE_STRONG, false);
 
     /* Initialize all pins for the Passthrough (P9.7 to P9.0)
     RSPI_MOSI -> P9.7, RSPI_MISO -> P9.6, RSPI_CLK -> P9.5, RSPI_CS -> P9.4, RSPI_IRQ -> P9.3, RXRES_L -> P9.2
     // TODO: PDM_CLK, PDM_DATA, and interrupts for other sensors
     */
-    result = cyhal_gpio_init(EXT_SPI_MOSI, CYHAL_GPIO_DIR_INPUT, CYHAL_GPIO_DRIVE_NONE, false);
+    result = cyhal_gpio_init(EXT_SPI_MOSI, CYHAL_GPIO_DIR_INPUT, CYHAL_GPIO_DRIVE_PULLDOWN, false);
     result = cyhal_gpio_init(EXT_SPI_MISO, CYHAL_GPIO_DIR_OUTPUT, CYHAL_GPIO_DRIVE_STRONG, false);
-    result = cyhal_gpio_init(EXT_SPI_CLK, CYHAL_GPIO_DIR_INPUT, CYHAL_GPIO_DRIVE_NONE, false);
-    result = cyhal_gpio_init(EXT_SPI_CS, CYHAL_GPIO_DIR_INPUT, CYHAL_GPIO_DRIVE_NONE, true);
+    result = cyhal_gpio_init(EXT_SPI_CLK, CYHAL_GPIO_DIR_INPUT, CYHAL_GPIO_DRIVE_PULLDOWN, false);
+    result = cyhal_gpio_init(EXT_SPI_CS, CYHAL_GPIO_DIR_INPUT, CYHAL_GPIO_DRIVE_PULLUP, true);
     result = cyhal_gpio_init(EXT_SPI_IRQ, CYHAL_GPIO_DIR_OUTPUT, CYHAL_GPIO_DRIVE_STRONG, false);
-    result = cyhal_gpio_init(EXT_RXRES_L, CYHAL_GPIO_DIR_INPUT, CYHAL_GPIO_DRIVE_NONE, false);
+    result = cyhal_gpio_init(EXT_RXRES_L, CYHAL_GPIO_DIR_INPUT, CYHAL_GPIO_DRIVE_PULLDOWN, false);
 
     /* GPIO init failed. Stop program execution */
     if (result != CY_RSLT_SUCCESS)
@@ -177,19 +179,22 @@ int main(void)
         CY_ASSERT(0);
     }
 
-    // Setup interrupts for SPI_CLK and  SPI_IRQ
+    // Setup interrupts for SPI_CLK, SPI_CS and SPI_IRQ
     gpio_spi_clk_callback_data.callback = gpio_spi_clk_interrupt_handler;
+    gpio_spi_cs_callback_data.callback = gpio_spi_cs_interrupt_handler;
     gpio_spi_irq_callback_data.callback = gpio_spi_irq_interrupt_handler;
 
     cyhal_gpio_register_callback(EXT_SPI_CLK, &gpio_spi_clk_callback_data);
+    cyhal_gpio_register_callback(EXT_SPI_CS, &gpio_spi_cs_callback_data);
     cyhal_gpio_register_callback(CYBSP_RSPI_IRQ, &gpio_spi_irq_callback_data);
 
     // TODO which one should have higher priority?
     cyhal_gpio_enable_event(EXT_SPI_CLK, CYHAL_GPIO_IRQ_BOTH, 7, true);
+    cyhal_gpio_enable_event(EXT_SPI_CS, CYHAL_GPIO_IRQ_BOTH, 7, true);
     cyhal_gpio_enable_event(CYBSP_RSPI_IRQ, CYHAL_GPIO_IRQ_BOTH, 7, true);
 
     printf("****************** "
-           "Radar Passthrough v0.0.1"
+           "Radar Passthrough v0.0.2"
            "****************** \r\n\n");
 
     /* Initialize timer to toggle the LED */
@@ -305,8 +310,17 @@ static void gpio_spi_clk_interrupt_handler(void *handler_arg, cyhal_gpio_event_t
     cyhal_gpio_write(CYBSP_RSPI_MOSI, cyhal_gpio_read(EXT_SPI_MOSI));
     cyhal_gpio_write(EXT_SPI_MISO, cyhal_gpio_read(CYBSP_RSPI_MISO));
     cyhal_gpio_write(CYBSP_RSPI_CLK, signal);
-    cyhal_gpio_write(CYBSP_RSPI_CS, cyhal_gpio_read(EXT_SPI_CS));
     cyhal_gpio_write(EXT_RXRES_L, cyhal_gpio_read(CYBSP_RXRES_L));
+}
+
+static void gpio_spi_cs_interrupt_handler(void *handler_arg, cyhal_gpio_event_t event)
+{
+    (void) handler_arg;
+    (void) event;
+
+    printf("SPI_CS interrupt triggered \r\n");
+    cyhal_gpio_write(CYBSP_RSPI_CS, cyhal_gpio_read(EXT_SPI_CS));
+
 }
 
 static void gpio_spi_irq_interrupt_handler(void *handler_arg, cyhal_gpio_event_t event)
